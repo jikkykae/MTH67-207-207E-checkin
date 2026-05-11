@@ -10,8 +10,22 @@
         .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
         h2 { color: #e67e22; margin: 0 0 10px 0; font-size: 20px; line-height: 1.4; }
         p { color: #666; margin: 10px 0 20px 0; font-size: 14px; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-family: 'Sarabun'; outline: none; }
-        input:focus { border-color: #e67e22; }
+        
+        /* สไตล์สำหรับ Input และ Select */
+        input, select { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 8px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 10px; 
+            box-sizing: border-box; 
+            font-family: 'Sarabun'; 
+            font-size: 16px;
+            outline: none; 
+            background-color: #fff;
+        }
+        input:focus, select:focus { border-color: #e67e22; }
+
         #video, #preview { width: 100%; border-radius: 10px; margin: 10px 0; display: none; }
         #video { background: #000; transform: scaleX(-1); }
         button { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; font-family: 'Sarabun'; transition: 0.3s; }
@@ -24,11 +38,18 @@
 
 <div class="card">
     <h2>MTH67-207 and MTH67-207E Check-in</h2>
-    <p>กรุณากรอกข้อมูลและถ่ายรูปเพื่อยืนยันตัวตน</p>
+    <p>กรุณากรอกข้อมูลและเลือกกลุ่มเรียน</p>
     
     <input type="text" id="id" placeholder="รหัสประจำตัว / ID">
     <input type="text" id="name" placeholder="ชื่อ-นามสกุล">
-    <input type="text" id="sec" placeholder="กลุ่มเรียน (Section)">
+    
+    <select id="sec">
+        <option value="" disabled selected>-- เลือกกลุ่มเรียน (Section) --</option>
+        <option value="1">Section 1</option>
+        <option value="2">Section 2</option>
+        <option value="3">Section 3</option>
+        <option value="E">Section E</option>
+    </select>
 
     <video id="video" autoplay playsinline></video>
     <img id="preview">
@@ -44,10 +65,7 @@
 <script>
     let localStream;
     let base64Photo = null;
-    // พิกัด ม.วลัยลักษณ์ และรัศมี 1 กม.
     const TARGET = { lat: 8.641774, lng: 99.897022, radius: 1000 };
-    
-    // URL ล่าสุดที่คุณส่งมา
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxK7FwF3QImAaQez_NXaApbKQHeJ4B1K2akQVjnd7BJZnilBJpy3TCv6IQPkFDmYJ5s/exec";
 
     async function openCam() {
@@ -71,7 +89,7 @@
         p.src = base64Photo;
         p.style.display = "block";
         v.style.display = "none";
-        document.getElementById('btnSnap').innerText = "ถ่ายใหม่";
+        document.getElementById('btnSnap').innerText = "ถ่ายรูปใหม่";
         document.getElementById('btnSubmit').style.display = "block";
         localStream.getTracks().forEach(t => t.stop());
     }
@@ -82,7 +100,7 @@
         const sec = document.getElementById('sec').value;
         const st = document.getElementById('status');
 
-        if(!id || !name || !sec || !base64Photo) return alert("กรุณากรอกข้อมูลและถ่ายรูปให้ครบ");
+        if(!id || !name || !sec || !base64Photo) return alert("กรุณากรอกข้อมูล เลือกกลุ่มเรียน และถ่ายรูปให้ครบ");
 
         st.innerText = "กำลังตรวจเช็คพิกัด GPS...";
         st.style.color = "blue";
@@ -93,11 +111,10 @@
                 st.innerText = "ตำแหน่งถูกต้อง กำลังส่งข้อมูล...";
                 upload(id, name, sec, pos.coords.latitude, pos.coords.longitude, "ในพื้นที่");
             } else {
-                st.innerText = `อยู่นอกพื้นที่ (${Math.round(dist)} ม.) ลงทะเบียนไม่ได้!`;
+                st.innerText = `ปฏิเสธ: อยู่นอกพื้นที่ (${Math.round(dist)} ม.)`;
                 st.style.color = "red";
-                document.getElementById('btnSubmit').disabled = false;
             }
-        }, () => alert("โปรดอนุญาต GPS และเปิดตำแหน่งที่ตั้งบนมือถือ"), { enableHighAccuracy: true });
+        }, () => alert("โปรดอนุญาต GPS"), { enableHighAccuracy: true });
     }
 
     function getDist(lat1, lon1, lat2, lon2) {
@@ -118,8 +135,6 @@
             document.getElementById('status').style.color = "green";
             document.getElementById('btnSubmit').disabled = true;
             document.getElementById('btnSubmit').innerText = "บันทึกเรียบร้อย";
-        }).catch(err => {
-            alert("เกิดข้อผิดพลาดในการส่งข้อมูล");
         });
     }
 </script>
