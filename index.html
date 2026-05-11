@@ -3,104 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบลงทะเบียน - มหาวิทยาลัยวลัยลักษณ์</title>
+    <title>MTH Check-in System</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Sarabun', sans-serif; background-color: #f4f7f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .card { background: #ffffff; padding: 40px 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 380px; text-align: center; }
-        h2 { color: #e67e22; margin-bottom: 5px; }
-        p { color: #666; margin-bottom: 20px; font-size: 14px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1.5px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; outline: none; }
+        body { font-family: 'Sarabun', sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        h2 { color: #e67e22; margin: 0 0 10px 0; font-size: 20px; line-height: 1.4; }
+        p { color: #666; margin: 10px 0 20px 0; font-size: 14px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-family: 'Sarabun'; outline: none; }
         input:focus { border-color: #e67e22; }
-        button { width: 100%; padding: 14px; background-color: #e67e22; color: white; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
-        button:hover { background-color: #d35400; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #status-box { margin-top: 20px; padding: 12px; border-radius: 8px; font-weight: 500; display: none; font-size: 14px; }
+        #video, #preview { width: 100%; border-radius: 10px; margin: 10px 0; display: none; }
+        #video { background: #000; transform: scaleX(-1); }
+        button { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; font-family: 'Sarabun'; transition: 0.3s; }
+        .btn-cam { background: #34495e; color: white; }
+        .btn-submit { background: #e67e22; color: white; display: none; }
+        #status { margin-top: 15px; font-weight: bold; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>WU Check-in</h2>
-    <p>ลงทะเบียนเข้าพื้นที่ ม.วลัยลักษณ์</p>
-    <input type="text" id="empId" placeholder="รหัสประจำตัว / ID">
-    <input type="text" id="empName" placeholder="ชื่อ-นามสกุล">
-    <button id="btnSubmit" onclick="startProcess()">บันทึกข้อมูล</button>
-    <div id="status-box"></div>
+    <h2>MTH67-207 and MTH67-207E Check-in</h2>
+    <p>กรุณากรอกข้อมูลและถ่ายรูปเพื่อยืนยันตัวตน</p>
+    
+    <input type="text" id="id" placeholder="รหัสประจำตัว / ID">
+    <input type="text" id="name" placeholder="ชื่อ-นามสกุล">
+    <input type="text" id="sec" placeholder="กลุ่มเรียน (Section)">
+
+    <video id="video" autoplay playsinline></video>
+    <img id="preview">
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <button id="btnCam" class="btn-cam" onclick="openCam()">เปิดกล้องถ่ายรูป</button>
+    <button id="btnSnap" class="btn-cam" style="display:none;" onclick="takeSnap()">กดเพื่อถ่ายรูป</button>
+    <button id="btnSubmit" class="btn-submit" onclick="process()">บันทึกข้อมูล</button>
+    
+    <div id="status"></div>
 </div>
 
 <script>
-    const TARGET_LAT = 8.641774; 
-    const TARGET_LNG = 99.897022; 
-    const RADIUS_LIMIT = 1000; 
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcL9cHZ95csBD9xoMcGwTQ_cIoPG6RLwRsrjcvacEfU1Xgkdk7yhuxTVCn49zSye3Y/exec";
+    let localStream;
+    let base64Photo = null;
+    // พิกัด ม.วลัยลักษณ์ และรัศมี 1 กม.
+    const TARGET = { lat: 8.641774, lng: 99.897022, radius: 1000 };
+    
+    // URL ล่าสุดที่คุณส่งมา
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxK7FwF3QImAaQez_NXaApbKQHeJ4B1K2akQVjnd7BJZnilBJpy3TCv6IQPkFDmYJ5s/exec";
 
-    function startProcess() {
-        const id = document.getElementById('empId').value;
-        const name = document.getElementById('empName').value;
-        const btn = document.getElementById('btnSubmit');
-
-        if (!id || !name) {
-            alert("กรุณากรอก ID และ ชื่อ ให้ครบถ้วน");
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerText = "กำลังดำเนินการ...";
-        updateStatus("กำลังตรวจเช็คตำแหน่ง GPS...", "#3498db");
-
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(position => {
-                const userLat = position.coords.latitude;
-                const userLng = position.coords.longitude;
-                const distance = getDistance(userLat, userLng, TARGET_LAT, TARGET_LNG);
-                
-                let statusMsg = (distance <= RADIUS_LIMIT) ? "ในพื้นที่" : "นอกพื้นที่";
-                let color = (distance <= RADIUS_LIMIT) ? "#27ae60" : "#c0392b";
-
-                updateStatus(`สถานะ: ${statusMsg} (${Math.round(distance)} ม. จากจุดกลาง)`, color);
-                sendData(id, name, userLat, userLng, statusMsg);
-
-            }, (error) => {
-                updateStatus("ผิดพลาด: โปรดเปิด GPS และกดยอมรับการเข้าถึงตำแหน่ง", "#c0392b");
-                btn.disabled = false;
-                btn.innerText = "ลองอีกครั้ง";
-            }, { enableHighAccuracy: true });
-        } else {
-            updateStatus("เบราว์เซอร์ไม่รองรับ GPS", "#c0392b");
-        }
+    async function openCam() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            const v = document.getElementById('video');
+            v.srcObject = localStream;
+            v.style.display = "block";
+            document.getElementById('btnCam').style.display = "none";
+            document.getElementById('btnSnap').style.display = "block";
+        } catch (e) { alert("เข้าถึงกล้องไม่ได้: " + e); }
     }
 
-    function updateStatus(text, color) {
-        const box = document.getElementById('status-box');
-        box.style.display = "block";
-        box.innerText = text;
-        box.style.color = color;
-        box.style.border = `1px solid ${color}`;
-        box.style.backgroundColor = color + "11";
+    function takeSnap() {
+        const v = document.getElementById('video');
+        const c = document.getElementById('canvas');
+        const p = document.getElementById('preview');
+        c.width = 400; c.height = 300;
+        c.getContext('2d').drawImage(v, 0, 0, 400, 300);
+        base64Photo = c.toDataURL('image/jpeg', 0.6);
+        p.src = base64Photo;
+        p.style.display = "block";
+        v.style.display = "none";
+        document.getElementById('btnSnap').innerText = "ถ่ายใหม่";
+        document.getElementById('btnSubmit').style.display = "block";
+        localStream.getTracks().forEach(t => t.stop());
     }
 
-    function getDistance(lat1, lon1, lat2, lon2) {
+    function process() {
+        const id = document.getElementById('id').value;
+        const name = document.getElementById('name').value;
+        const sec = document.getElementById('sec').value;
+        const st = document.getElementById('status');
+
+        if(!id || !name || !sec || !base64Photo) return alert("กรุณากรอกข้อมูลและถ่ายรูปให้ครบ");
+
+        st.innerText = "กำลังตรวจเช็คพิกัด GPS...";
+        st.style.color = "blue";
+
+        navigator.geolocation.getCurrentPosition(pos => {
+            const dist = getDist(pos.coords.latitude, pos.coords.longitude, TARGET.lat, TARGET.lng);
+            if(dist <= TARGET.radius) {
+                st.innerText = "ตำแหน่งถูกต้อง กำลังส่งข้อมูล...";
+                upload(id, name, sec, pos.coords.latitude, pos.coords.longitude, "ในพื้นที่");
+            } else {
+                st.innerText = `อยู่นอกพื้นที่ (${Math.round(dist)} ม.) ลงทะเบียนไม่ได้!`;
+                st.style.color = "red";
+                document.getElementById('btnSubmit').disabled = false;
+            }
+        }, () => alert("โปรดอนุญาต GPS และเปิดตำแหน่งที่ตั้งบนมือถือ"), { enableHighAccuracy: true });
+    }
+
+    function getDist(lat1, lon1, lat2, lon2) {
         const R = 6371000;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const dLat = (lat2-lat1) * Math.PI/180;
+        const dLon = (lon2-lon1) * Math.PI/180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function sendData(id, name, lat, lng, status) {
+    function upload(id, name, section, lat, lng, status) {
         fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors',
-            body: JSON.stringify({ id, name, lat, lng, status })
+            body: JSON.stringify({ id, name, section, lat, lng, status, photo: base64Photo })
         }).then(() => {
-            updateStatus("✅ บันทึกข้อมูลเรียบร้อยแล้ว", "#27ae60");
-            document.getElementById('btnSubmit').innerText = "บันทึกสำเร็จ";
+            document.getElementById('status').innerText = "✅ บันทึกสำเร็จพร้อมรูปถ่าย!";
+            document.getElementById('status').style.color = "green";
+            document.getElementById('btnSubmit').disabled = true;
+            document.getElementById('btnSubmit').innerText = "บันทึกเรียบร้อย";
         }).catch(err => {
-            updateStatus("เกิดข้อผิดพลาดในการส่งข้อมูล", "#c0392b");
-            document.getElementById('btnSubmit').disabled = false;
+            alert("เกิดข้อผิดพลาดในการส่งข้อมูล");
         });
     }
 </script>
